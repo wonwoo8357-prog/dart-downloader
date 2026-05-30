@@ -19,7 +19,11 @@ export async function onRequest(context) {
   const target = `https://opendart.fss.or.kr/api/document.xml?crtfc_key=${KEY}&rcept_no=${rcept}`;
 
   try {
-    const res = await fetch(target);
+    const res = await fetch(target, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+      }
+    });
 
     // DART는 에러 시 JSON, 정상 시 ZIP binary 반환
     const ct = res.headers.get('content-type') || '';
