@@ -4,6 +4,8 @@
 //
 // API 키는 Cloudflare 환경변수 DART_API_KEY 에서 읽음
 
+import { unzipSync, strFromU8 } from 'https://esm.sh/fflate@0.8.2';
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -93,28 +95,15 @@ async function getCorpList(key) {
   return MEM_CACHE;
 }
 
-// ZIP에서 첫 번째 파일을 꺼내 텍스트로 반환 (deflate raw 가정)
+// ZIP에서 첫 번째 파일을 꺼내 텍스트로 반환 (fflate 사용)
 async function unzipSingleFile(buf) {
-  const dv = new DataView(buf);
-  // Local file header signature: 0x04034b50 (PK\x03\x04)
-  if (dv.getUint32(0, true) !== 0x04034b50) {
-    throw new Error('ZIP 시그니처 불일치');
-  }
-  const compMethod = dv.getUint16(8, true);       // 0=stored, 8=deflate
-  const compSize = dv.getUint32(18, true);
-  const fnLen = dv.getUint16(26, true);
-  const extraLen = dv.getUint16(28, true);
-  const dataStart = 30 + fnLen + extraLen;
-  const compData = buf.slice(dataStart, dataStart + compSize);
-
-  if (compMethod === 0) {
-    return new TextDecoder('utf-8').decode(compData);
-  }
-  // deflate-raw 해제 (Cloudflare Workers 내장 DecompressionStream)
-  const ds = new DecompressionStream('deflate-raw');
-  const stream = new Response(compData).body.pipeThrough(ds);
-  const out = await new Response(stream).arrayBuffer();
-  return new TextDecoder('utf-8').decode(out);
+  const u8 = new Uint8Array(buf);
+  const files = unzipSync(u8);
+  const names = Object.keys(files);
+  if (names.length === 0) throw new Error('ZIP 안에 파일이 없습니다');
+  // CORPCODE.xml 우선, 없으면 첫 번째 파일
+  const target = names.find(n => /\.xml$/i.test(n)) || names[0];
+  return strFromU8(files[target]);
 }
 
 // CORPCODE.xml 파싱: <list><corp_code>..</corp_code><corp_name>..</corp_name><stock_code>..</stock_code>..</list>
