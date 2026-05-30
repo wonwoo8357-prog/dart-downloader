@@ -50,9 +50,11 @@ export async function onRequest(context) {
       const end = params.get('end_de') || '';
       const ty = params.get('pblntf_ty') || '';
       const page = params.get('page_no') || '1';
-      let q = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${KEY}&corp_code=${corp}&page_no=${page}&page_count=100`;
+      // 파라미터 순서: corp_code → 날짜 → 유형 → 페이지 (DART 정상 동작 순서)
+      let q = `https://opendart.fss.or.kr/api/list.json?crtfc_key=${KEY}&corp_code=${corp}`;
       if (bgn) q += `&bgn_de=${bgn}&end_de=${end}`;
       if (ty) q += `&pblntf_ty=${ty}`;
+      q += `&page_no=${page}&page_count=100`;
 
       const res = await fetch(q);
       const text = await res.text();
