@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DART 공시 다운로더</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f; --bg2: #181818; --bg3: #222;
+    --border: #2a2a2a; --border2: #333;
+    --text: #e8e8e8; --text2: #888; --text3: #555;
+    --accent: #00e5a0; --accent2: #00b880;
+    --accent-dim: rgba(0,229,160,0.08); --accent-dim2: rgba(0,229,160,0.15);
+    --danger: #ff5f5f; --warn: #f5a623;
+    --mono: 'JetBrains Mono', monospace; --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .top-bar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 16px 32px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); flex-shrink: 0; }
+  .logo-text { font-family: var(--mono); font-size: 14px; color: var(--text2); letter-spacing: 0.08em; }
+  .logo-text span { color: var(--accent); }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 48px 32px; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+  .sub { color: var(--text2); font-size: 14px; margin-bottom: 40px; }
+
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 20px; }
+  .card-title { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 16px; }
+
+  input[type="text"] {
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px;
+    padding: 10px 14px; color: var(--text); font-family: var(--sans); font-size: 14px;
+    outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--text3); }
+
+  .btn {
+    background: transparent; border: 1px solid var(--border2); border-radius: 8px;
+    padding: 10px 18px; color: var(--text2); font-family: var(--sans); font-size: 13px;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+  .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); color: #000; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .search-row { display: flex; gap: 10px; }
+  .search-row input { flex: 1; }
+
+  .period-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .period-btn {
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 20px;
+    padding: 6px 16px; color: var(--text2); font-size: 13px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--sans);
+  }
+  .period-btn:hover, .period-btn.active { background: var(--accent-dim2); border-color: var(--accent); color: var(--accent); }
+
+  .report-type-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .type-btn {
+    background: var(--bg3); border: 1px solid var(--border2); border-radius: 6px;
+    padding: 5px 12px; color: var(--text2); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--mono);
+  }
+  .type-btn:hover, .type-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+  .status-bar {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--text2);
+    margin-bottom: 20px; min-height: 42px; display: flex; align-items: center; gap: 8px;
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text3); flex-shrink: 0; }
+  .status-dot.ok { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .status-dot.err { background: var(--danger); }
+  .status-dot.loading { background: var(--warn); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .results-count { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+  .results-count span { color: var(--accent); }
+
+  .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead tr { background: var(--bg3); border-bottom: 1px solid var(--border2); }
+  th { padding: 10px 14px; text-align: left; color: var(--text3); font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 400; white-space: nowrap; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+  td { padding: 11px 14px; color: var(--text2); vertical-align: middle; }
+  td.title-cell { color: var(--text); max-width: 320px; }
+  td.title-cell a { color: var(--text); text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  td.title-cell a:hover { color: var(--accent); }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-family: var(--mono); font-size: 11px; background: var(--bg3); border: 1px solid var(--border2); color: var(--text3); white-space: nowrap; }
+  .badge.A { border-color: #3a6ea5; color: #6bafd6; background: rgba(58,110,165,0.1); }
+  .badge.B { border-color: #5a8f5a; color: #7dc47d; background: rgba(90,143,90,0.1); }
+  .badge.C { border-color: #8f5a8f; color: #c47dc4; background: rgba(143,90,143,0.1); }
+  .badge.D { border-color: #8f8f5a; color: #c4c47d; background: rgba(143,143,90,0.1); }
+  .badge.E { border-color: #8f5a5a; color: #c47d7d; background: rgba(143,90,90,0.1); }
+
+  .dl-btn {
+    background: transparent; border: 1px solid var(--border2); border-radius: 6px;
+    padding: 5px 10px; color: var(--text3); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--sans); white-space: nowrap;
+  }
+  .dl-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .bulk-bar { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--accent-dim2); border: 1px solid var(--accent); border-radius: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .bulk-bar-text { font-size: 13px; color: var(--text2); flex: 1; min-width: 160px; }
+  .bulk-bar-text strong { color: var(--accent); }
+
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-label { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--text3); margin-bottom: 6px; gap: 12px; }
+  .progress-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .progress-track { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; width: 0%; }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); font-size: 14px; }
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+
+  .section-label { font-size: 12px; color: var(--text3); margin-bottom: 8px; font-family: var(--mono); }
+  select { background: var(--bg3); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 12px; color: var(--text); font-family: var(--sans); font-size: 13px; outline: none; cursor: pointer; }
+  select:focus { border-color: var(--accent); }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); cursor: pointer; user-select: none; }
+  .checkbox-row input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  @media (max-width: 600px) { .container { padding: 24px 16px; } .search-row { flex-direction: column; } }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo-dot"></div>
+  <div class="logo-text"><span>DART</span> / 전자공시 다운로더</div>
+</div>
+
+<div class="container">
+  <h1>공시 일괄 다운로드</h1>
+  <p class="sub">종목명으로 검색해 원하는 기간의 공시 원문을 한번에 받으세요.</p>
+
+  <div class="card">
+    <div class="card-title">종목 검색</div>
+    <div class="search-row">
+      <input type="text" id="companyName" placeholder="종목명 또는 법인명 입력 (예: 삼성전자, 카카오)" />
+      <button class="btn btn-primary" onclick="searchCompany()">검색</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="section-label">조회 기간</div>
+    <div class="period-row" id="periodRow">
+      <button class="period-btn active" data-period="1" onclick="selectPeriod(this,1)">1년</button>
+      <button class="period-btn" data-period="3" onclick="selectPeriod(this,3)">3년</button>
+      <button class="period-btn" data-period="5" onclick="selectPeriod(this,5)">5년</button>
+      <button class="period-btn" data-period="10" onclick="selectPeriod(this,10)">10년</button>
+      <button class="period-btn" data-period="0" onclick="selectPeriod(this,0)">전체</button>
+    </div>
+
+    <hr class="divider">
+
+    <div class="section-label">공시 유형 필터 (복수 선택)</div>
+    <div class="report-type-row" id="typeRow">
+      <button class="type-btn active" data-type="" onclick="toggleType(this,'')">전체</button>
+      <button class="type-btn" data-type="A" onclick="toggleType(this,'A')">정기공시</button>
+      <button class="type-btn" data-type="B" onclick="toggleType(this,'B')">주요사항</button>
+      <button class="type-btn" data-type="C" onclick="toggleType(this,'C')">발행공시</button>
+      <button class="type-btn" data-type="D" onclick="toggleType(this,'D')">지분공시</button>
+      <button class="type-btn" data-type="E" onclick="toggleType(this,'E')">기타</button>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot ok" id="statusDot"></div>
+    <span id="statusText">준비 완료. 종목명을 검색하세요.</span>
+  </div>
+
+  <div id="resultsArea" style="display:none;">
+    <div class="bulk-bar">
+      <div class="bulk-bar-text"><strong id="bulkCount">0</strong>건 조회됨 — 선택 공시 원문(ZIP) 일괄 다운로드</div>
+      <button class="btn btn-primary" id="bulkBtn" onclick="bulkDownload()">⬇ 선택 일괄 다운로드</button>
+      <label class="checkbox-row"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"> 전체 선택</label>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-label"><span id="progressLabel">다운로드 중...</span><span id="progressPct">0%</span></div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+
+    <div class="results-header">
+      <div class="results-count">총 <span id="totalCount">0</span>건</div>
+      <select id="sortSelect" onchange="sortResults()">
+        <option value="date_desc">최신순</option>
+        <option value="date_asc">오래된순</option>
+        <option value="type">유형순</option>
+      </select>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th style="width:36px;"><input type="checkbox" id="headerCheck" onchange="toggleSelectAll(this)" style="accent-color:var(--accent);"></th>
+          <th>접수일</th><th>공시 제목</th><th>유형</th><th>제출인</th><th></th>
+        </tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="emptyState" class="empty-state" style="display:none;">
+    <div class="icon">📋</div><div>조회된 공시가 없습니다.</div>
+  </div>
+</div>
+
+<script>
+let currentPeriod = 1;
+let selectedTypes = new Set(['']);
+let allDisclosures = [];
+let corpName = '';
+let isSearching = false;
+
+const TYPE_MAP = { 'A':'정기공시','B':'주요사항','C':'발행공시','D':'지분공시','E':'기타','':'전체' };
+
+window.onload = function() {
+  document.getElementById('companyName').addEventListener('keydown', e => { if (e.key==='Enter') searchCompany(); });
+};
+
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className = 'status-dot' + (type ? ' '+type : '');
+  document.getElementById('statusText').textContent = msg;
+}
+
+function selectPeriod(btn, p) {
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); currentPeriod = p;
+}
+
+function toggleType(btn, type) {
+  if (type === '') {
+    selectedTypes.clear(); selectedTypes.add('');
+    document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  } else {
+    selectedTypes.delete('');
+    document.querySelector('.type-btn[data-type=""]').classList.remove('active');
+    if (btn.classList.contains('active')) {
+      btn.classList.remove('active'); selectedTypes.delete(type);
+      if (selectedTypes.size === 0) { selectedTypes.add(''); document.querySelector('.type-btn[data-type=""]').classList.add('active'); }
+    } else { btn.classList.add('active'); selectedTypes.add(type); }
+  }
+}
+
+async function searchCompany() {
+  if (isSearching) return;
+  const name = document.getElementById('companyName').value.trim();
+  if (!name) { setStatus('err','종목명을 입력해주세요.'); return; }
+
+  isSearching = true;
+  setStatus('loading', `"${name}" 검색 중...`);
+  document.getElementById('resultsArea').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/dart?type=company&name=${encodeURIComponent(name)}`);
+    const data = await res.json();
+
+    if (data.status !== '000') {
+      setStatus('err', `오류: ${data.message || '법인 조회 실패'}`); isSearching=false; return;
+    }
+    const list = data.corp_list || [];
+    if (list.length === 0) { setStatus('err', `"${name}" 법인을 찾을 수 없습니다.`); isSearching=false; return; }
+
+    const stock = list.find(c=>c.stock_code) || list[0];
+    corpName = stock.corp_name;
+    setStatus('loading', `${corpName} 공시 조회 중...`);
+    await fetchDisclosures(stock.corp_code);
+  } catch(e) {
+    setStatus('err', `네트워크 오류: ${e.message}`);
+  }
+  isSearching = false;
+}
+
+async function fetchDisclosures(code) {
+  let startDate = '';
+  if (currentPeriod > 0) {
+    const past = new Date(); past.setFullYear(past.getFullYear()-currentPeriod);
+    startDate = past.toISOString().slice(0,10).replace(/-/g,'');
+  }
+  const endDate = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  const hasType = !selectedTypes.has('');
+  const ty = hasType ? [...selectedTypes].join('') : '';
+
+  allDisclosures = [];
+  let page = 1; const maxPages = 30;
+
+  while (page <= maxPages) {
+    let q = `/api/dart?type=list&corp_code=${code}&page_no=${page}`;
+    if (startDate) q += `&bgn_de=${startDate}&end_de=${endDate}`;
+    if (ty) q += `&pblntf_ty=${ty}`;
+
+    const res = await fetch(q);
+    const data = await res.json();
+    if (data.status !== '000') {
+      if (page === 1) { setStatus('err', `공시 조회 실패: ${data.message}`); return; }
+      break;
+    }
+    const items = data.list || [];
+    allDisclosures.push(...items);
+    setStatus('loading', `공시 목록 로딩 중... (${allDisclosures.length}건)`);
+    if (items.length < 100 || allDisclosures.length >= data.total_count) break;
+    page++;
+  }
+
+  renderTable(allDisclosures);
+  setStatus('ok', `${corpName} — ${allDisclosures.length}건 조회 완료`);
+}
+
+function renderTable(items) {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('totalCount').textContent = items.length;
+  document.getElementById('bulkCount').textContent = items.length;
+
+  if (items.length === 0) {
+    document.getElementById('resultsArea').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'block'; return;
+  }
+  document.getElementById('resultsArea').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+
+  tbody.innerHTML = items.map((item,i)=>{
+    const date = formatDate(item.rcept_dt);
+    const tc = item.pblntf_ty || 'E';
+    const tn = TYPE_MAP[tc] || tc;
+    const viewer = `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${item.rcept_no}`;
+    return `<tr>
+      <td><input type="checkbox" class="row-check" data-idx="${i}" style="accent-color:var(--accent);"></td>
+      <td style="font-family:var(--mono);font-size:12px;white-space:nowrap;color:var(--text3);">${date}</td>
+      <td class="title-cell"><a href="${viewer}" target="_blank">${escHtml(item.report_nm)}</a></td>
+      <td><span class="badge ${tc}">${tn}</span></td>
+      <td style="font-size:12px;color:var(--text3);white-space:nowrap;max-width:100px;overflow:hidden;text-overflow:ellipsis;">${escHtml(item.flr_nm||corpName)}</td>
+      <td><button class="dl-btn" onclick="downloadOne('${item.rcept_no}','${escAttr(item.report_nm)}','${item.rcept_dt}')">⬇ 원문</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function sortResults() {
+  const v = document.getElementById('sortSelect').value;
+  let s = [...allDisclosures];
+  if (v==='date_desc') s.sort((a,b)=>b.rcept_dt.localeCompare(a.rcept_dt));
+  else if (v==='date_asc') s.sort((a,b)=>a.rcept_dt.localeCompare(b.rcept_dt));
+  else if (v==='type') s.sort((a,b)=>(a.pblntf_ty||'E').localeCompare(b.pblntf_ty||'E'));
+  renderTable(s);
+}
+
+function toggleSelectAll(cb) {
+  const c = cb.checked;
+  document.querySelectorAll('.row-check').forEach(x=>x.checked=c);
+  document.getElementById('selectAll').checked = c;
+  document.getElementById('headerCheck').checked = c;
+}
+
+function buildFileName(rn, dt, title) {
+  const d = (dt||'').slice(0,8);
+  const t = (title||'').replace(/[\\/:*?"<>|]/g,'_').slice(0,40);
+  return `${d}_${t}`;
+}
+
+// 단건: 프록시 download 엔드포인트로 직접 이동 → 브라우저가 ZIP 저장
+function downloadOne(rcept, title, dt) {
+  const fn = buildFileName(rcept, dt, title);
+  const a = document.createElement('a');
+  a.href = `/api/download?rcept_no=${rcept}&fn=${encodeURIComponent(fn)}`;
+  a.download = '';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// 일괄: 선택된 항목을 순차적으로 ZIP 다운로드 트리거
+async function bulkDownload() {
+  const checked = [...document.querySelectorAll('.row-check:checked')];
+  if (checked.length === 0) { alert('다운로드할 공시를 선택해주세요.'); return; }
+
+  const items = checked.map(c=>allDisclosures[parseInt(c.dataset.idx)]).filter(Boolean);
+
+  const pw = document.getElementById('progressWrap');
+  pw.style.display = 'block';
+  document.getElementById('bulkBtn').disabled = true;
+
+  for (let i=0; i<items.length; i++) {
+    const it = items[i];
+    const pct = Math.round(((i+1)/items.length)*100);
+    document.getElementById('progressLabel').textContent = `다운로드: ${it.report_nm}`;
+    document.getElementById('progressPct').textContent = pct+'%';
+    document.getElementById('progressFill').style.width = pct+'%';
+
+    const fn = buildFileName(it.rcept_no, it.rcept_dt, it.report_nm);
+    const a = document.createElement('a');
+    a.href = `/api/download?rcept_no=${it.rcept_no}&fn=${encodeURIComponent(fn)}`;
+    a.download = '';
+    document.body.appendChild(a); a.click(); a.remove();
+
+    // DART 호출 간격 (분당 제한 회피 + 브라우저 다운로드 큐 안정화)
+    await sleep(800);
+  }
+
+  document.getElementById('progressLabel').textContent = `완료! ${items.length}건 다운로드`;
+  document.getElementById('progressPct').textContent = '100%';
+  document.getElementById('bulkBtn').disabled = false;
+  setTimeout(()=>{ pw.style.display='none'; }, 4000);
+}
+
+function formatDate(s) { return (!s||s.length<8) ? s : `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}`; }
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+</script>
+</body>
+</html>
