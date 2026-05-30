@@ -56,7 +56,12 @@ export async function onRequest(context) {
       if (ty) q += `&pblntf_ty=${ty}`;
       q += `&page_no=${page}&page_count=100`;
 
-      const res = await fetch(q);
+      const res = await fetch(q, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+          'Accept': 'application/json'
+        }
+      });
       const text = await res.text();
       if (!text || text.trim() === '') {
         return json({ status: 'error', message: 'DART list 응답이 비었습니다. (corp_code=' + corp + ')' }, 502);
