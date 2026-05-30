@@ -54,8 +54,17 @@ export async function onRequest(context) {
       if (bgn) q += `&bgn_de=${bgn}&end_de=${end}`;
       if (ty) q += `&pblntf_ty=${ty}`;
 
-      const res = await fetch(q, { redirect: 'manual' });
-      const data = await res.json();
+      const res = await fetch(q);
+      const text = await res.text();
+      if (!text || text.trim() === '') {
+        return json({ status: 'error', message: 'DART list 응답이 비었습니다. (corp_code=' + corp + ')' }, 502);
+      }
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        return json({ status: 'error', message: 'DART list 응답이 JSON이 아님: ' + text.slice(0, 150) }, 502);
+      }
       return json(data, 200);
 
     } else {
